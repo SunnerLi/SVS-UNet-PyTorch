@@ -4,10 +4,12 @@ import numpy as np
 import torch
 import os
 
-class Concat2d(nn.Module):
-    def forward(self, tuple_tensor):
-        a, b = tuple_tensor
-        return torch.cat([a, b], 1)
+"""
+    This script define the structure and update schema of U-Net
+
+    @Reference: https://github.com/Jeongseungwoo/Singing-Voice-Separation
+    @Revise: SunnerLi
+"""
 
 class UNet(nn.Module):
     def __init__(self):
@@ -168,6 +170,12 @@ class UNet(nn.Module):
         return loss_dict
 
     def forward(self, mix):
+        """
+            Generate the mask for the given mixture audio spectrogram
+
+            Arg:    mix     (torch.Tensor)  - The mixture spectrogram which size is (B, 1, 512, 128)
+            Ret:    The soft mask which size is (B, 1, 512, 128)
+        """
         conv1_out = self.conv1(mix)
         conv2_out = self.conv2(conv1_out)
         conv3_out = self.conv3(conv2_out)
@@ -189,6 +197,12 @@ class UNet(nn.Module):
         return out
 
     def backward(self, mix, voc):
+        """
+            Update the parameters for the given mixture spectrogram and the pure vocal spectrogram
+
+            Arg:    mix     (torch.Tensor)  - The mixture spectrogram which size is (B, 1, 512, 128)
+                    voc     (torch.Tensor)  - The pure vocal spectrogram which size is (B, 1, 512, 128)
+        """
         self.optim.zero_grad()
         msk = self.forward(mix)
         loss = self.crit(msk * mix, voc)

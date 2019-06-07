@@ -9,44 +9,22 @@ import random
 import torch
 import os
 
+"""
+    This script defines the training procedure of SVS-UNet
+
+    @Author: SunnerLi
+"""
+
 class SpectrogramDataset(Data.Dataset):
     def __init__(self, path):
         self.path = path
-        self.files = os.listdir(os.path.join(path, 'mixture'))
+        self.files = sorted(os.listdir(os.path.join(path, 'mixture')))
         self.files = [name for name in self.files if 'spec' in name]
 
     def __len__(self):
         return len(self.files)
 
     def __getitem__(self, idx):
-        """
-            root --+-- mixture
-                   |
-                   +-- drum
-                   |
-                   +-- bass
-                   |
-                   +-- rest
-                   |
-                   +-- vocal
-        """
-
-        # wav, sr = librosa.load(self.files[idx], mono=False)
-
-        # audio, rate = stempeg.read_stems(
-        #                 filename=self.files[idx],
-        #                 stem_id=4
-        #             )
-
-        # import sounddevice as sd
-        # from librosa.display import waveplot
-        # # waveplot(wav[1])
-        # # waveplot(wav[0])
-        # # plt.tight_layout()
-        # # plt.show()
-        # sd.play(audio, rate, blocking=True)
-        # print(audio.shape)
-
         # Load the spectrogram
         mix = np.load(os.path.join(self.path, 'mixture', self.files[idx]))
         voc = np.load(os.path.join(self.path, 'vocal', self.files[idx]))
@@ -63,38 +41,49 @@ class SpectrogramDataset(Data.Dataset):
         voc = torch.from_numpy(voc).permute(2, 0, 1)
         return mix, voc
 
-
+# =========================================================================================
+# 1. Parse the direction and related parameters
+# =========================================================================================
 """
-    Dataset: https://sigsep.github.io/datasets/musdb.html
-    Ref: https://github.com/Jeongseungwoo/Singing-Voice-Separation
+                                    Parameter Explain
+    --------------------------------------------------------------------------------------------
+        --train_folder      The root of the training folder. You can generate via data.py
+        --load_path         The path of pre-trained model
+        --save_path         The model path you want to save 
+        --epoch             How many epoch you want to train
+    --------------------------------------------------------------------------------------------
 """
-
-# 1. Parse the parameters
 parser = argparse.ArgumentParser()
 parser.add_argument('--train_folder', type = str, default = './data/vocals')
-parser.add_argument('--load_path', type = str, default = 'result.pth')
-parser.add_argument('--save_path', type = str, default = 'result.pth')
-parser.add_argument('--epoch', type = int, default = 2)
+parser.add_argument('--load_path'   , type = str, default = 'result.pth')
+parser.add_argument('--save_path'   , type = str, default = 'result.pth')
+parser.add_argument('--epoch'       , type = int, default = 2)
 args = parser.parse_args()
 
-# 2. Create the data loader
+# =========================================================================================
+# 2. Training
+# =========================================================================================
+# Create the data loader
 loader = Data.DataLoader(
     dataset = SpectrogramDataset(args.train_folder),
-    batch_size=1, num_workers=0
+    batch_size=1, num_workers=0, shuffle=True
 )
 
-# 3. Load the pre-trained model
+# Load the pre-trained model
 model = UNet()
 model.load(args.load_path)
 
-# 4. Train!
+# Train!
 for ep in range(args.epoch):
     bar = tqdm_table(loader)
     for i, (mix, voc) in enumerate(bar):
         mix, voc = mix.cuda(), voc.cuda()
         model.backward(mix, voc)
-        bar.set_table_info(model.getLoss(normalize = False))
         if i == len(bar) - 1:
-            bar.set_table_info(model.getLoss(normalize = True))
+            info_dict = model.getLoss(normalize = True)
+        else:
+            info_dict = model.getLoss(normalize = False)
+        info_dict.update({'Epoch': ep})
+        bar.set_table_info(info_dict)
     model.save(args.save_path)
 print("Finish training!")
