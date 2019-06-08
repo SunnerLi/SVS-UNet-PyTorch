@@ -108,10 +108,15 @@ elif args.direction == 'to_wave':
             mag = mag[:, :length]
             phase = phase[:, :length]
 
+            # De-normalization
+            spectrogram = mag*phase
+            mix_spec = np.load(os.path.join(args.phase, spec_name))
+            spectrogram *= mix_spec.max()
+
             # reconstruct the audio
-            y = librosa.istft(mag*phase, win_length=args.win_size, hop_length=args.hop_size)
+            y = librosa.istft(spectrogram, win_length=args.win_size, hop_length=args.hop_size)
             file_path = os.path.join(args.tar, str(audio_idx) + '.mp3')
-            librosa.output.write_wav(file_path, y, args.sr, norm=True)
+            librosa.output.write_wav(file_path, y, int(args.sr), norm=True)
 
 else:
     raise Exception("Unknown direction {}. Please assign one of them [to_spec, to_wave]".format(args.direction))
